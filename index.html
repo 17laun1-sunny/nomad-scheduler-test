@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nomad Schedule</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+    input, button, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+    button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+    button.delete { background-color: #f44336; margin-top: 5px;}
+    .card { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+    #dashboard { display: none; }
+  </style>
+</head>
+<body>
+
+  <div id="login-section">
+    <h2>Teacher Login</h2>
+    <p>Enter your email to view or add availability.</p>
+    <input type="email" id="emailInput" placeholder="teacher@school.edu">
+    <button onclick="loadDashboard()">Login</button>
+  </div>
+
+  <div id="dashboard">
+    <h3 id="welcomeMsg"></h3>
+    
+    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+      <h4>Add Availability</h4>
+      <input type="date" id="dateInput">
+      <select id="timeInput">
+        <option value="Morning (9am - 12pm)">Morning (9am - 12pm)</option>
+        <option value="Afternoon (1pm - 4pm)">Afternoon (1pm - 4pm)</option>
+        <option value="Full Day">Full Day</option>
+      </select>
+      <button onclick="addSlot()">Submit Availability</button>
+    </div>
+
+    <h4>My Scheduled Slots</h4>
+    <div id="slotList">Loading...</div>
+  </div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylyn-GmyUviQFUkxIw0ZeMsnnU_GCgjjoF_vmhfmDFGezAlLt1gcS_kET_AaTkXreb/exec'; // PASTE YOUR URL HERE!
+    let currentEmail = "";
+
+    function loadDashboard() {
+      currentEmail = document.getElementById('emailInput').value;
+      if(!currentEmail) return alert("Please enter email");
+      
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('welcomeMsg').innerText = "Hello, " + currentEmail;
+      
+      fetchSlots();
+    }
+
+    function fetchSlots() {
+      document.getElementById('slotList').innerHTML = "Loading...";
+      
+      fetch(SCRIPT_URL + `?action=getSchedule&email=${currentEmail}`)
+      .then(response => response.json())
+      .then(data => {
+        const list = document.getElementById('slotList');
+        list.innerHTML = "";
+        
+        if (data.data.length === 0) {
+            list.innerHTML = "<p>No slots found.</p>";
+            return;
+        }
+
+        data.data.forEach(slot => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.innerHTML = `
+            <strong>${slot.date}</strong> <br> ${slot.time}
+            <button class="delete" onclick="deleteSlot('${slot.id}')">Remove</button>
+          `;
+          list.appendChild(div);
+        });
+      });
+    }
+
+    function addSlot() {
+      const date = document.getElementById('dateInput').value;
+      const time = document.getElementById('timeInput').value;
+      
+      if(!date) return alert("Pick a date");
+
+      // Use formData for POST to avoid CORS preflight issues in simple setups
+      const formData = new FormData();
+      formData.append('action', 'add');
+      formData.append('email', currentEmail);
+      formData.append('date', date);
+      formData.append('time', time);
+
+      fetch(SCRIPT_URL, { method: 'POST', body: formData })
+      .then(response => response.json())
+      .then(data => {
+        alert("Added!");
+        fetchSlots(); // Refresh list
+      });
+    }
+
+    function deleteSlot(id) {
+      if(!confirm("Are you sure?")) return;
+
+      const formData = new FormData();
+      formData.append('action', 'delete');
+      formData.append('id', id);
+
+      fetch(SCRIPT_URL, { method: 'POST', body: formData })
+      .then(response => response.json())
+      .then(data => {
+        fetchSlots(); // Refresh list
+      });
+    }
+  </script>
+</body>
+</html>
