@@ -1,117 +1,287 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Nomad Schedule</title>
+  <title>Nomad Calendar</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
-    input, button, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
-    button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-    button.delete { background-color: #f44336; margin-top: 5px;}
-    .card { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-    #dashboard { display: none; }
+    /* SIMPLE STYLES */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 0; margin: 0; background-color: #f4f6f8; }
+    .container { max-width: 500px; margin: 0 auto; background: white; min-height: 100vh; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+
+    /* Login Screen */
+    #login-view { text-align: center; margin-top: 50px; }
+    input[type="email"] { padding: 12px; width: 80%; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 10px; }
+    button.primary { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 80%; }
+    
+    /* Calendar Header */
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .header button { background: none; border: 1px solid #ddd; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+    .header h2 { margin: 0; font-size: 18px; }
+
+    /* Calendar Grid */
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+    .day-name { font-weight: bold; font-size: 12px; color: #666; padding-bottom: 10px; }
+    .day-cell { 
+      aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+      border-radius: 8px; cursor: pointer; border: 1px solid transparent; position: relative;
+    }
+    .day-cell:hover { background-color: #f0f9ff; }
+    .day-cell.today { font-weight: bold; color: #2563eb; }
+    .day-cell.has-slots { background-color: #dbeafe; border-color: #bfdbfe; font-weight: bold; }
+    .day-cell.empty { pointer-events: none; } /* Empty slots for padding */
+    .slot-dot { width: 6px; height: 6px; background-color: #2563eb; border-radius: 50%; margin-top: 4px; display: none; }
+    .day-cell.has-slots .slot-dot { display: block; }
+
+    /* Modal (Time Picker) */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: flex-end; }
+    .modal.active { display: flex; }
+    .modal-content { background: white; width: 100%; max-width: 500px; border-radius: 20px 20px 0 0; padding: 25px; box-sizing: border-box; max-height: 80vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .close-btn { background: #eee; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-weight: bold; }
+
+    /* Time Grid */
+    .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .time-btn { padding: 12px; border: 1px solid #ddd; background: white; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .time-btn.selected { background-color: #2563eb; color: white; border-color: #2563eb; }
+    .time-btn.booked { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; text-decoration: line-through; }
+
+    /* Saved Slots List */
+    #dashboard-view { display: none; }
+    .slot-list { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+    .slot-item { display: flex; justify-content: space-between; padding: 10px; background: #fff; border: 1px solid #eee; margin-bottom: 8px; border-radius: 6px; }
+    .delete-btn { color: red; cursor: pointer; border: none; background: none; font-weight: bold; }
+
   </style>
 </head>
 <body>
 
-  <div id="login-section">
-    <h2>Teacher Login</h2>
-    <p>Enter your email to view or add availability.</p>
-    <input type="email" id="emailInput" placeholder="teacher@school.edu">
-    <button onclick="loadDashboard()">Login</button>
+  <div class="container" id="login-view">
+    <h1>Nomad Schedule 📅</h1>
+    <p>Enter your email to manage availability.</p>
+    <input type="email" id="emailInput" placeholder="nomad@company.com">
+    <br><br>
+    <button class="primary" onclick="login()">Enter</button>
   </div>
 
-  <div id="dashboard">
-    <h3 id="welcomeMsg"></h3>
-    
-    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
-      <h4>Add Availability</h4>
-      <input type="date" id="dateInput">
-      <select id="timeInput">
-        <option value="Morning (9am - 12pm)">Morning (9am - 12pm)</option>
-        <option value="Afternoon (1pm - 4pm)">Afternoon (1pm - 4pm)</option>
-        <option value="Full Day">Full Day</option>
-      </select>
-      <button onclick="addSlot()">Submit Availability</button>
+  <div class="container" id="dashboard-view">
+    <div class="header">
+      <h2 id="monthLabel">September 2025</h2>
+      <div>
+        <button onclick="changeMonth(-1)">&#8249;</button>
+        <button onclick="changeMonth(1)">&#8250;</button>
+      </div>
     </div>
 
-    <h4>My Scheduled Slots</h4>
-    <div id="slotList">Loading...</div>
+    <div class="calendar-grid" id="calendarGrid">
+      </div>
+
+    <div class="slot-list">
+      <h3>My Upcoming Slots</h3>
+      <div id="mySlotsList">Loading...</div>
+    </div>
+  </div>
+
+  <div class="modal" id="timeModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalDateTitle">Select Times</h3>
+        <button class="close-btn" onclick="closeModal()">×</button>
+      </div>
+      
+      <p>Select hours you are free (9am - 10pm)</p>
+      <div class="time-grid" id="timeGrid">
+        </div>
+
+      <button class="primary" onclick="saveAvailability()">Submit Availability</button>
+    </div>
   </div>
 
   <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylyn-GmyUviQFUkxIw0ZeMsnnU_GCgjjoF_vmhfmDFGezAlLt1gcS_kET_AaTkXreb/exec'; // PASTE YOUR URL HERE!
+    // --- CONFIGURATION ---
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRsfISrGFJTQRIG2mmYCFrkaiKjhonb7RBD_D5jnX2jctsE0_mX52X8J1pD7fPNCZ3/exec'; // <--- PASTE YOUR NEW URL HERE
+    // ---------------------
+
     let currentEmail = "";
+    let currentData = []; // Stores existing slots from server
+    let viewDate = new Date();
+    let selectedDateStr = ""; 
+    let selectedTimes = new Set(); // Stores times user clicks in modal
 
-    function loadDashboard() {
-      currentEmail = document.getElementById('emailInput').value;
-      if(!currentEmail) return alert("Please enter email");
+    // --- LOGIN & INIT ---
+    function login() {
+      const email = document.getElementById('emailInput').value;
+      if (!email) return alert("Please enter email");
+      currentEmail = email;
       
-      document.getElementById('login-section').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'block';
-      document.getElementById('welcomeMsg').innerText = "Hello, " + currentEmail;
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('dashboard-view').style.display = 'block';
       
-      fetchSlots();
+      fetchSchedule();
     }
 
-    function fetchSlots() {
-      document.getElementById('slotList').innerHTML = "Loading...";
+    // --- DATA FETCHING ---
+    function fetchSchedule() {
+      document.getElementById('mySlotsList').innerHTML = "Loading...";
       
-      fetch(SCRIPT_URL + `?action=getSchedule&email=${currentEmail}`)
-      .then(response => response.json())
-      .then(data => {
-        const list = document.getElementById('slotList');
-        list.innerHTML = "";
-        
-        if (data.data.length === 0) {
-            list.innerHTML = "<p>No slots found.</p>";
-            return;
+      fetch(`${SCRIPT_URL}?action=getSchedule&email=${currentEmail}`)
+      .then(r => r.json())
+      .then(resp => {
+        if(resp.status === 'success') {
+          currentData = resp.data;
+          renderCalendar();
+          renderList();
+        } else {
+          alert("Error loading data");
         }
-
-        data.data.forEach(slot => {
-          const div = document.createElement('div');
-          div.className = 'card';
-          div.innerHTML = `
-            <strong>${slot.date}</strong> <br> ${slot.time}
-            <button class="delete" onclick="deleteSlot('${slot.id}')">Remove</button>
-          `;
-          list.appendChild(div);
-        });
       });
     }
 
-    function addSlot() {
-      const date = document.getElementById('dateInput').value;
-      const time = document.getElementById('timeInput').value;
+    // --- CALENDAR RENDERER ---
+    function renderCalendar() {
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = "";
       
-      if(!date) return alert("Pick a date");
+      // Day Headers
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      days.forEach(d => grid.innerHTML += `<div class="day-name">${d}</div>`);
 
-      // Use formData for POST to avoid CORS preflight issues in simple setups
-      const formData = new FormData();
-      formData.append('action', 'add');
-      formData.append('email', currentEmail);
-      formData.append('date', date);
-      formData.append('time', time);
+      // Month Logic
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      document.getElementById('monthLabel').innerText = viewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-      fetch(SCRIPT_URL, { method: 'POST', body: formData })
-      .then(response => response.json())
-      .then(data => {
-        alert("Added!");
-        fetchSlots(); // Refresh list
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // Empty padding slots
+      for (let i = 0; i < firstDay; i++) {
+        grid.innerHTML += `<div class="day-cell empty"></div>`;
+      }
+
+      // Day slots
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        // Check if we have slots on this day
+        const daySlots = currentData.filter(s => s.date === dateStr);
+        const hasSlots = daySlots.length > 0;
+        
+        const cell = document.createElement('div');
+        cell.className = `day-cell ${hasSlots ? 'has-slots' : ''}`;
+        cell.innerHTML = `${day} <div class="slot-dot"></div>`;
+        cell.onclick = () => openModal(dateStr, daySlots);
+        grid.appendChild(cell);
+      }
+    }
+
+    function changeMonth(dir) {
+      viewDate.setMonth(viewDate.getMonth() + dir);
+      renderCalendar();
+    }
+
+    // --- MODAL & TIME PICKER ---
+    function openModal(dateStr, existingSlots) {
+      selectedDateStr = dateStr;
+      selectedTimes.clear();
+      document.getElementById('modalDateTitle').innerText = new Date(dateStr).toDateString();
+      document.getElementById('timeModal').classList.add('active');
+      
+      const grid = document.getElementById('timeGrid');
+      grid.innerHTML = "";
+
+      // Hours 9am to 10pm (22:00)
+      const startHour = 9;
+      const endHour = 22;
+
+      for (let h = startHour; h <= endHour; h++) {
+        const timeLabel = `${h}:00`;
+        const btn = document.createElement('div');
+        btn.className = 'time-btn';
+        btn.innerText = timeLabel;
+        
+        // Check if already booked
+        const isBooked = existingSlots.some(s => s.time == timeLabel);
+        
+        if (isBooked) {
+          btn.classList.add('booked');
+          btn.title = "Already added";
+        } else {
+          btn.onclick = () => {
+            if (selectedTimes.has(timeLabel)) {
+              selectedTimes.delete(timeLabel);
+              btn.classList.remove('selected');
+            } else {
+              selectedTimes.add(timeLabel);
+              btn.classList.add('selected');
+            }
+          };
+        }
+        grid.appendChild(btn);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('timeModal').classList.remove('active');
+    }
+
+    // --- SAVING ---
+    function saveAvailability() {
+      if (selectedTimes.size === 0) return alert("Please select at least one time.");
+
+      const slotsArray = Array.from(selectedTimes).map(time => ({
+        date: selectedDateStr,
+        time: time
+      }));
+
+      // Send as JSON payload
+      fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'batchAdd',
+          email: currentEmail,
+          slots: slotsArray
+        })
+      })
+      .then(r => r.json())
+      .then(resp => {
+        if(resp.status === 'success') {
+          closeModal();
+          fetchSchedule(); // Refresh data
+        } else {
+          alert("Failed to save");
+        }
       });
     }
 
+    // --- DELETING ---
     function deleteSlot(id) {
-      if(!confirm("Are you sure?")) return;
+      if(!confirm("Remove this slot?")) return;
+      
+      fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', id: id })
+      })
+      .then(r => r.json())
+      .then(resp => {
+        if(resp.status === 'success') fetchSchedule();
+      });
+    }
 
-      const formData = new FormData();
-      formData.append('action', 'delete');
-      formData.append('id', id);
+    function renderList() {
+      const list = document.getElementById('mySlotsList');
+      list.innerHTML = "";
+      
+      // Sort slots by date
+      currentData.sort((a,b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
 
-      fetch(SCRIPT_URL, { method: 'POST', body: formData })
-      .then(response => response.json())
-      .then(data => {
-        fetchSlots(); // Refresh list
+      currentData.forEach(slot => {
+        const item = document.createElement('div');
+        item.className = 'slot-item';
+        item.innerHTML = `
+          <span><strong>${slot.date}</strong> @ ${slot.time}</span>
+          <button class="delete-btn" onclick="deleteSlot('${slot.id}')">✕</button>
+        `;
+        list.appendChild(item);
       });
     }
   </script>
